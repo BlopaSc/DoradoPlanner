@@ -79,6 +79,7 @@ std::vector<std::string> DoradoPlanner::plan(const std::string filename,AStar::A
 	PDDL::Problem* problem = PDDL::parsePDDLProblem(filename);
 	Action::mapActions.clear();
 	WorldState::actions.clear();
+	std::vector<Action> actions;
 	for(const PDDL::Domain::Action &act : domain->actions){
 		std::vector<std::vector<std::pair<std::string,std::string>>> params = possibleParameters(problem, act.parameters);
 		Expressions::Expression* precondition = Expressions::make_expression(act.precondition);
@@ -94,13 +95,28 @@ std::vector<std::string> DoradoPlanner::plan(const std::string filename,AStar::A
 				preconditionGrounded = preconditionGrounded->substitute(var,grounded);
 				effectGrounded = effectGrounded->substitute(var,grounded);
 			}
-			WorldState::actions.push_back({name,preconditionGrounded,effectGrounded});
+			actions.push_back({name,preconditionGrounded,effectGrounded});
 		}
 	}
 	// TODO: To world init add constants
 	WorldState* initialState = new WorldState(Expressions::make_world(problem->init,problem->sets));
 	WorldState::goal = Expressions::make_expression(problem->goal);
-	// TODO: Calculate all_list and remove useless/impossible actions
+	// Remove impossible actions
+	Expressions::Atoms maximumList = initialState->world->atoms;
+	for(const Action &act : actions){
+		Expressions::Atoms addList;
+		Expressions::Atoms ignoreList;
+		act.effect->applyPositive(addList,ignoreList);
+		for(Expressions::idexpr_t expr : addList){
+			maximumList.insert(expr);
+		}
+	}
+	Expressions::World* maximumWorld = new Expressions::World(0,maximumList);
+	for(const Action &act : actions){
+		if(act.precondition->isModeledBy(maximumWorld)){ WorldState::actions.push_back(act); }
+	}
+	delete maximumWorld;
+	// Perform planning
 	AStar::Path<WorldState> path = AStar::AStar(initialState,WorldState::goalFunction,AStar::defaultHeuristic,mets);
 	for(const std::pair<AStar::idaction_t,WorldState*> &act : path){
 		if(!act.first){ continue; }

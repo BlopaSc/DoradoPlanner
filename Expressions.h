@@ -69,6 +69,7 @@ namespace Expressions{
 			virtual ~Expression();
 			virtual bool isModeledBy(World* world);
 			virtual void apply(World* world,Atoms &addList,Atoms &removeList);
+			virtual void applyPositive(Atoms &addList,Atoms &removeList);
 			virtual Expression* substitute(idexpr_t o,idexpr_t n);
 			virtual std::ostream& print(std::ostream& out) const;
 			friend std::ostream& operator<<(std::ostream &out, Expression &e);
@@ -116,6 +117,7 @@ namespace Expressions{
 			Atom(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
 			void apply(World* world,Atoms &addList,Atoms &removeList);
+			void applyPositive(Atoms &addList,Atoms &removeList);
 			Expression* substitute(idexpr_t o,idexpr_t n);
 	};
 	
@@ -124,6 +126,7 @@ namespace Expressions{
 			And(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
 			void apply(World* world,Atoms &addList,Atoms &removeList);
+			void applyPositive(Atoms &addList,Atoms &removeList);
 	};
 	
 	class Or : public LogicalExpression{
@@ -138,6 +141,7 @@ namespace Expressions{
 			Not(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
 			void apply(World* world,Atoms &addList,Atoms &removeList);
+			void applyPositive(Atoms &addList,Atoms &removeList);
 	};
 	
 	class Equals : public LogicalExpression{
@@ -159,6 +163,7 @@ namespace Expressions{
 			When(idexpr_t k,Arguments &a);
 			// Can't be modeled, should throw error (a modeled When is an Imply)
 			void apply(World* world,Atoms &addList,Atoms &removeList);
+			void applyPositive(Atoms &addList,Atoms &removeList);
 	};
 	
 	class Exists : public LogicalExpression{
@@ -173,6 +178,7 @@ namespace Expressions{
 			Forall(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
 			void apply(World* world,Atoms &addList,Atoms &removeList);
+			void applyPositive(Atoms &addList,Atoms &removeList);
 	};
 	
 };

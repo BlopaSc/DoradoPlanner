@@ -39,6 +39,7 @@ namespace Expressions{
 	Expression::~Expression(){};
 	bool Expression::isModeledBy(World* world){ return false; }
 	void Expression::apply(World* world,Atoms &addList,Atoms &removeList){}
+	void Expression::applyPositive(Atoms &addList,Atoms &removeList){}
 	Expression* Expression::substitute(idexpr_t o,idexpr_t n){ return this; }
 	std::ostream& Expression::print(std::ostream& out) const { return out<<"Undefined"; }
 	std::ostream& operator<<(std::ostream &out, Expression &e){ return e.print(out); }
@@ -228,6 +229,7 @@ namespace Expressions{
 	void Atom::apply(World* world,Atoms &addList,Atoms &removeList){
 		addList.insert(key);
 	}
+	void Atom::applyPositive(Atoms &addList,Atoms &removeList){ addList.insert(key); }
 	Expression* Atom::substitute(idexpr_t o,idexpr_t n){
 		Expression* expr = this;
 		bool subs = false;
@@ -260,6 +262,7 @@ namespace Expressions{
 			exprs.at(a)->apply(world,addList,removeList);
 		}
 	}
+	void And::applyPositive(Atoms &addList,Atoms &removeList){ for(idexpr_t a : args){ exprs.at(a)->applyPositive(addList,removeList); } }
 	
 	// Or class
 	// Can't be applied, should throw error
@@ -279,6 +282,7 @@ namespace Expressions{
 	void Not::apply(World* world,Atoms &addList,Atoms &removeList){
 		exprs.at(args.front())->apply(world,removeList,addList);
 	}
+	void Not::applyPositive(Atoms &addList,Atoms &removeList){ exprs.at(args.front())->applyPositive(removeList,addList); }
 
 	// Equals class
 	// Can't be applied, should throw error
@@ -298,6 +302,7 @@ namespace Expressions{
 			exprs.at(args.back())->apply(world, addList, removeList);
 		}
 	}
+	void When::applyPositive(Atoms &addList,Atoms &removeList){ exprs.at(args.back())->applyPositive(addList,removeList); }
 
 	// Exists class
 	// Can't be applied, should throw error
@@ -326,6 +331,13 @@ namespace Expressions{
 		idexpr_t gid = v->group;
 		for(idexpr_t member : world->groups.at(gid)){
 			exprs.at(args.back())->substitute(v->variable,member)->apply(world,addList,removeList);
+		}
+	}
+	void Forall::applyPositive(Atoms &addList,Atoms &removeList){
+		Variable* v = (Variable*)exprs.at(args.front());
+		idexpr_t gid = v->group;
+		for(idexpr_t member : World::groups.at(gid)){
+			exprs.at(args.back())->substitute(v->variable,member)->applyPositive(addList,removeList);
 		}
 	}
 	
