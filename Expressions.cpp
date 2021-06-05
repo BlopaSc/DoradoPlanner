@@ -38,6 +38,7 @@ namespace Expressions{
 	Expression::Expression(idexpr_t k, idtype_t t) : key(k),type(t) {};
 	Expression::~Expression(){};
 	bool Expression::isModeledBy(World* world){ return false; }
+	bool Expression::isLaxModeledBy(World* maxWorld,World* minWorld){ return false; }
 	void Expression::apply(World* world,Atoms &addList,Atoms &removeList){}
 	void Expression::applyPositive(Atoms &addList,Atoms &removeList){}
 	Expression* Expression::substitute(idexpr_t o,idexpr_t n){ return this; }
@@ -226,6 +227,7 @@ namespace Expressions{
 	bool Atom::isModeledBy(World* world){
 		return world->atoms.find(key) != world->atoms.end();
 	}
+	bool Atom::isLaxModeledBy(World* maxWorld,World* minWorld){ return isModeledBy(maxWorld); }
 	void Atom::apply(World* world,Atoms &addList,Atoms &removeList){
 		addList.insert(key);
 	}
@@ -257,6 +259,12 @@ namespace Expressions{
 		}
 		return true;
 	}
+	bool And::isLaxModeledBy(World* maxWorld,World* minWorld){
+		for(idexpr_t a : args){
+			if(!exprs.at(a)->isLaxModeledBy(maxWorld,minWorld)){ return false; }
+		}
+		return true;
+	}
 	void And::apply(World* world,Atoms &addList,Atoms &removeList){
 		for(idexpr_t a : args){
 			exprs.at(a)->apply(world,addList,removeList);
@@ -273,11 +281,20 @@ namespace Expressions{
 		}
 		return false;
 	}
+	bool Or::isLaxModeledBy(World* maxWorld,World* minWorld){
+		for(idexpr_t a : args){
+			if(exprs.at(a)->isLaxModeledBy(maxWorld,minWorld)){ return true; }
+		}
+		return false;
+	}
 	
 	// Not class
 	Not::Not(idexpr_t k,Arguments &a) : LogicalExpression(k,ExpressionType::NOT,a) {};
 	bool Not::isModeledBy(World* world){
 		return !exprs.at(args.front())->isModeledBy(world);
+	}
+	bool Not::isLaxModeledBy(World* maxWorld,World* minWorld){
+		return !exprs.at(args.front())->isLaxModeledBy(minWorld,maxWorld);
 	}
 	void Not::apply(World* world,Atoms &addList,Atoms &removeList){
 		exprs.at(args.front())->apply(world,removeList,addList);
@@ -288,11 +305,31 @@ namespace Expressions{
 	// Can't be applied, should throw error
 	Equals::Equals(idexpr_t k,Arguments &a) : LogicalExpression(k,ExpressionType::EQUALS,a) {};
 	bool Equals::isModeledBy(World* world){ return args.front()==args.back(); }
+	bool Equals::isLaxModeledBy(World* maxWorld,World* minWorld){ return args.front()==args.back(); }
+	Expression* Equals::substitute(idexpr_t o,idexpr_t n){
+		Expression* expr = this;
+		bool subs = false;
+		for(idexpr_t a : args){
+			if(a==o){
+				subs = true;
+				break;
+			}
+		}
+		if(subs){
+			Arguments newArgs;
+			for(idexpr_t a : args){
+				newArgs.push_back(a==o?n:a);
+			}
+			expr = registerExpression(type,newArgs);
+		}
+		return expr;
+	}
 	
 	// Imply class
 	// Can't be applied, should throw error (an applied Imply is a When)
 	Imply::Imply(idexpr_t k,Arguments &a) : LogicalExpression(k,ExpressionType::IMPLY,a) {};
 	bool Imply::isModeledBy(World* world){ return !exprs.at(args.front())->isModeledBy(world) || exprs.at(args.back())->isModeledBy(world); }
+	bool Imply::isLaxModeledBy(World* maxWorld,World* minWorld){ return !exprs.at(args.front())->isLaxModeledBy(minWorld,maxWorld) || exprs.at(args.back())->isLaxModeledBy(maxWorld,minWorld); }
 
 	// When class
 	// Can't be modeled, should throw error (a modeled When is an Imply)
@@ -315,6 +352,14 @@ namespace Expressions{
 		}
 		return false;
 	}
+	bool Exists::isLaxModeledBy(World* maxWorld,World* minWorld){
+		Variable* v = (Variable*)exprs.at(args.front());
+		idexpr_t gid = v->group;
+		for(idexpr_t member : maxWorld->groups.at(gid)){
+			if(exprs.at(args.back())->substitute(v->variable,member)->isLaxModeledBy(maxWorld,minWorld)){ return true; }
+		}
+		return false;
+	}
 	
 	// Forall class
 	Forall::Forall(idexpr_t k,Arguments &a) : LogicalExpression(k,ExpressionType::FORALL,a) {};
@@ -323,6 +368,14 @@ namespace Expressions{
 		idexpr_t gid = v->group;
 		for(idexpr_t member : world->groups.at(gid)){
 			if(!exprs.at(args.back())->substitute(v->variable,member)->isModeledBy(world)){ return false; }
+		}
+		return true;
+	}
+	bool Forall::isLaxModeledBy(World* maxWorld,World* minWorld){
+		Variable* v = (Variable*)exprs.at(args.front());
+		idexpr_t gid = v->group;
+		for(idexpr_t member : maxWorld->groups.at(gid)){
+			if(!exprs.at(args.back())->substitute(v->variable,member)->isLaxModeledBy(maxWorld,minWorld)){ return false; }
 		}
 		return true;
 	}
@@ -396,6 +449,7 @@ namespace Expressions{
 		}
 		// Parse fragments into arguments
 		Expression* newExp;
+		bool wasVar = false;
 		size = fragments.size();
 		for(unsigned int i=0;i<size;i++){
 			std::string &frag = fragments[i];
@@ -424,6 +478,7 @@ namespace Expressions{
 				newExp = make_expression(frag);
 			}else if(frag[0]=='?'){
 				// Variable
+				wasVar = true;
 				if(i+1<size && fragments[i+1][0]=='-'){
 					if(i+2<size){
 						newExp = Expression::registerVariable(frag,fragments[i+2]);
@@ -433,7 +488,7 @@ namespace Expressions{
 						i+=1;
 					}
 				}else{
-					newExp = Expression::registerConstant(frag);
+					newExp = Expression::registerVariable(frag,"");
 				}
 			}else{
 				// Constant
@@ -442,7 +497,7 @@ namespace Expressions{
 			arguments.push_back(newExp->key);
 		}
 		// Must exclude any single argument structure
-		if(arguments.size()==1 && type!=ExpressionType::NOT){ 
+		if(arguments.size()==1 && wasVar && type!=ExpressionType::NOT){ 
 			return newExp;
 		}
 		// Create expression from arguments

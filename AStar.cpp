@@ -67,14 +67,17 @@ namespace AStar{
 	class AStarMetrics{
 		public:
 			double timeTaken;
-			unsigned int knownNodes;
+			// Frontier nodes: Number of known different states
+			// Expanded nodes: Number of states that were expanded (their neighbors were requested)
+			// Visited nodes: Number of states evaluated (might have been repeated/excluded)
+			unsigned int frontierNodes;
 			unsigned int expandedNodes;
 			unsigned int visitedNodes;
-			unsigned int duplicatedNodes;
 			friend std::ostream& operator<<(std::ostream &out, AStarMetrics &mets){
 				out << "Time taken: " << std::setprecision(3) << (mets.timeTaken/1000.0) << " s" << std::endl;
-				out << "Frontier nodes: " << mets.knownNodes << std::endl << "Expanded nodes: " << mets.expandedNodes << std::endl;
-				return out << "Reached nodes: " << mets.visitedNodes << std::endl << "Duplicated nodes: " << mets.duplicatedNodes << std::endl;
+				out << "Frontier nodes: " << mets.frontierNodes << std::endl;
+				out << "Expanded nodes: " << mets.expandedNodes << std::endl;
+				return out << "Visited nodes: " << mets.visitedNodes << std::endl;
 			}
 	};
 	
@@ -87,8 +90,7 @@ namespace AStar{
 		std::priority_queue<Edge<T>> frontier;
 		std::map<idstate_t, NodeState<T>> knownStates;
 		unsigned int expandedNodes = 0;
-		unsigned int visitedNodes = 0;
-		unsigned int duplicatedNodes = 0;
+		unsigned int visitedNodes = 1;
 		Node<T> initialNode(initialState);
 		auto tStart = std::chrono::steady_clock::now();
 		frontier.push({initialNode,0.0});
@@ -104,10 +106,7 @@ namespace AStar{
 				goal = true;
 				break;
 			}
-			if(currentState->visited){
-				duplicatedNodes++;
-				continue;
-			}
+			if(currentState->visited){ continue; }
 			NodeNeighbors<T> neighbors = current.getNeighbors();
 			visitedNodes += neighbors.size();
 			expandedNodes++;
@@ -145,10 +144,9 @@ namespace AStar{
 		}
 		if(metrics){
 			metrics->timeTaken = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - tStart).count();
-			metrics->knownNodes = knownStates.size();
+			metrics->frontierNodes = knownStates.size();
 			metrics->expandedNodes = expandedNodes;
 			metrics->visitedNodes = visitedNodes;
-			metrics->duplicatedNodes = duplicatedNodes;
 		}
 		return solution;
 	}

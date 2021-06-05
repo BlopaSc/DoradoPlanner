@@ -32,8 +32,7 @@ class DoradoPlanner{
 				AStar::NodeNeighbors<WorldState> getNeighbors();
 				static bool goalFunction(WorldState* state);
 		};
-		std::vector<std::vector<std::pair<std::string,std::string>>> possibleParameters(PDDL::Problem* problem, const std::vector<std::pair<std::string,std::string>> &params, int curr=1);
-	public:
+		std::vector<std::vector<std::pair<std::string,std::string>>> possibleParameters(PDDL::Problem* problem, const std::vector<std::pair<std::string,std::string>> &params, int curr=0);
 		PDDL::Domain* domain;
 	public:
 		DoradoPlanner(const std::string filename);
@@ -81,41 +80,51 @@ std::vector<std::string> DoradoPlanner::plan(const std::string filename,AStar::A
 	WorldState::actions.clear();
 	std::vector<Action> actions;
 	for(const PDDL::Domain::Action &act : domain->actions){
-		std::vector<std::vector<std::pair<std::string,std::string>>> params = possibleParameters(problem, act.parameters);
 		Expressions::Expression* precondition = Expressions::make_expression(act.precondition);
 		Expressions::Expression* effect = Expressions::make_expression(act.effect);
+		if(!act.parameters.size()){
+			actions.push_back({act.name,precondition,effect});
+			continue;
+		}
+		std::vector<std::vector<std::pair<std::string,std::string>>> params = possibleParameters(problem, act.parameters);
 		for(const std::vector<std::pair<std::string,std::string>> &paramPerm : params){
-			std::string name = act.name;
+			std::string name;
 			Expressions::Expression* preconditionGrounded = precondition;
 			Expressions::Expression* effectGrounded = effect;
 			for(const std::pair<std::string,std::string> &paramSubstitution : paramPerm){
-				name += " " + paramSubstitution.second;
+				name =  " " +paramSubstitution.second + name;
 				Expressions::idexpr_t var = Expressions::get_idword(paramSubstitution.first);
 				Expressions::idexpr_t grounded = Expressions::get_idword(paramSubstitution.second);
 				preconditionGrounded = preconditionGrounded->substitute(var,grounded);
 				effectGrounded = effectGrounded->substitute(var,grounded);
 			}
+			name = act.name + name;
 			actions.push_back({name,preconditionGrounded,effectGrounded});
 		}
 	}
-	// TODO: To world init add constants
 	WorldState* initialState = new WorldState(Expressions::make_world(problem->init,problem->sets));
 	WorldState::goal = Expressions::make_expression(problem->goal);
 	// Remove impossible actions
 	Expressions::Atoms maximumList = initialState->world->atoms;
+	Expressions::Atoms minimumList = initialState->world->atoms;
 	for(const Action &act : actions){
 		Expressions::Atoms addList;
-		Expressions::Atoms ignoreList;
-		act.effect->applyPositive(addList,ignoreList);
+		Expressions::Atoms removeList;
+		act.effect->applyPositive(addList,removeList);
 		for(Expressions::idexpr_t expr : addList){
 			maximumList.insert(expr);
 		}
+		for(Expressions::idexpr_t expr : removeList){
+			minimumList.erase(expr);
+		}
 	}
 	Expressions::World* maximumWorld = new Expressions::World(0,maximumList);
+	Expressions::World* minimumWorld = new Expressions::World(0,minimumList);
 	for(const Action &act : actions){
-		if(act.precondition->isModeledBy(maximumWorld)){ WorldState::actions.push_back(act); }
+		if(act.precondition->isLaxModeledBy(maximumWorld,minimumWorld)){ WorldState::actions.push_back(act); }
 	}
 	delete maximumWorld;
+	delete minimumWorld;
 	// Perform planning
 	AStar::Path<WorldState> path = AStar::AStar(initialState,WorldState::goalFunction,AStar::defaultHeuristic,mets);
 	for(const std::pair<AStar::idaction_t,WorldState*> &act : path){
@@ -129,8 +138,8 @@ std::vector<std::string> DoradoPlanner::plan(const std::string filename,AStar::A
 
 std::vector<std::vector<std::pair<std::string,std::string>>> DoradoPlanner::possibleParameters(PDDL::Problem* problem, const std::vector<std::pair<std::string,std::string>> &params, int curr){
 	std::vector<std::vector<std::pair<std::string,std::string>>> permutations;
-	int index = params.size() - curr;
-	if(index){
+	int index = curr;
+	if(index+1<params.size()){
 		std::vector<std::vector<std::pair<std::string,std::string>>> nextPermutations = possibleParameters(problem,params,curr+1);
 		for(const std::string &obj : problem->sets.at(params.at(index).second)){
 			for(std::vector<std::pair<std::string,std::string>> perm : nextPermutations){

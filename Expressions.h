@@ -68,6 +68,7 @@ namespace Expressions{
 			Expression(idexpr_t k, idtype_t t);
 			virtual ~Expression();
 			virtual bool isModeledBy(World* world);
+			virtual bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			virtual void apply(World* world,Atoms &addList,Atoms &removeList);
 			virtual void applyPositive(Atoms &addList,Atoms &removeList);
 			virtual Expression* substitute(idexpr_t o,idexpr_t n);
@@ -116,6 +117,7 @@ namespace Expressions{
 		public:
 			Atom(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
+			bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			void apply(World* world,Atoms &addList,Atoms &removeList);
 			void applyPositive(Atoms &addList,Atoms &removeList);
 			Expression* substitute(idexpr_t o,idexpr_t n);
@@ -125,6 +127,7 @@ namespace Expressions{
 		public:
 			And(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
+			bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			void apply(World* world,Atoms &addList,Atoms &removeList);
 			void applyPositive(Atoms &addList,Atoms &removeList);
 	};
@@ -133,6 +136,7 @@ namespace Expressions{
 		public:
 			Or(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
+			bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			// Can't be applied, should throw error
 	};
 	
@@ -140,6 +144,7 @@ namespace Expressions{
 		public:
 			Not(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
+			bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			void apply(World* world,Atoms &addList,Atoms &removeList);
 			void applyPositive(Atoms &addList,Atoms &removeList);
 	};
@@ -148,13 +153,16 @@ namespace Expressions{
 		public:
 			Equals(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
+			bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			// Can't be applied, should throw error
+			Expression* substitute(idexpr_t o,idexpr_t n);
 	};
 	
 	class Imply : public LogicalExpression{
 		public:
 			Imply(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
+			bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			// Can't be applied, should throw error (an applied Imply is a When)
 	};
 	
@@ -170,6 +178,7 @@ namespace Expressions{
 		public:
 			Exists(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
+			bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			// Can't be applied, should throw error
 	};
 	
@@ -177,6 +186,7 @@ namespace Expressions{
 		public:
 			Forall(idexpr_t k,Arguments &a);
 			bool isModeledBy(World* world);
+			bool isLaxModeledBy(World* maxWorld,World* minWorld);
 			void apply(World* world,Atoms &addList,Atoms &removeList);
 			void applyPositive(Atoms &addList,Atoms &removeList);
 	};

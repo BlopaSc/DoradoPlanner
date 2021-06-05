@@ -17,8 +17,10 @@ namespace PDDL{
 	std::string loadFile(const std::string &filename);
 	std::vector<std::string> splitSections(const std::string &s);
 	std::string flattenString(std::string s);
+	void removeComments(std::string &s);
 	Domain* parsePDDLDomain(const std::string &filename);
 	Problem* parsePDDLProblem(const std::string &filename);
+	void releaseMemory();
 	
 	const char* supported[] = {":strips",":typing",":disjunctive-preconditions",
 								":equality",":existential-preconditions",
@@ -41,10 +43,12 @@ namespace PDDL{
 			std::vector<std::string> requirements;
 			std::map<std::string,std::set<std::string>> itypes;
 			std::map<std::string,std::set<std::string>> types;
+			std::map<std::string,std::set<std::string>> constants;
 			std::vector<Action> actions;
 			friend std::ostream& operator<<(std::ostream &out, Domain &d);
 			friend Domain* parsePDDLDomain(const std::string &filename);
 			friend Problem* parsePDDLProblem(const std::string &filename);
+			friend void releaseMemory();
 	};
 	
 	class Problem{
@@ -58,6 +62,7 @@ namespace PDDL{
 			std::map<std::string,std::set<std::string>> sets;
 			friend std::ostream& operator<<(std::ostream &out, Problem &p);
 			friend Problem* parsePDDLProblem(const std::string &filename);
+			friend void releaseMemory();
 	};
 	
 	// Domain class
@@ -84,6 +89,17 @@ namespace PDDL{
 				out <<"\t\t";
 				for(const std::string &typ : type.second){ out << typ << " "; }
 				out << "- " << type.first << std::endl;
+			}
+			out << "\t)" << std::endl;
+		}
+		if(!d.constants.empty()){
+			out << "\t(:constants";
+			for(const std::pair<std::string,std::set<std::string>> &set : d.constants){
+				if(set.first==""){ continue; }
+				for(const std::string &obj : set.second){
+					out << std::endl << "\t\t" << obj;
+				}
+				out << " - " << set.first << std::endl;
 			}
 			out << "\t)" << std::endl;
 		}
@@ -124,7 +140,7 @@ namespace PDDL{
 		size_t anchor;
 		for(size_t reader = 0;reader<s.size();){
 			anchor = reader;
-			if(s.at(reader)==' ' || s.at(reader)=='\n' || s.at(reader)=='\r'){
+			if(s.at(reader)==' ' || s.at(reader)=='\n' || s.at(reader)=='\r' || s.at(reader)=='\t'){
 				reader++;
 				continue;
 			}else if(s.at(reader)=='('){
@@ -149,8 +165,8 @@ namespace PDDL{
 		std::string result;
 		bool flag = false;
 		for(char c : s){
-			if(c!='\n' && c!='\r' && c!=' '){
-				if(flag){ result += ' '; }
+			if(c!='\n' && c!='\r' && c!='\t' && c!=' '){
+				if(flag && c!=')'){ result += ' '; }
 				result += c;
 				flag = false;
 			}else if(!flag){
@@ -160,16 +176,28 @@ namespace PDDL{
 		return result;
 	}
 	
+	void removeComments(std::string &s){
+		unsigned int offset = 0;
+		bool comment = false;
+		while(offset<s.size()){
+			if(s.at(offset)=='\r' || s.at(offset)=='\n'){ comment = false; }
+			if(s.at(offset)==';'){ comment = true; }
+			if(comment){ s[offset]=' '; }
+			offset++;
+		}
+	}
+	
 	// TODO: Make safe -> adds exceptions/errors
 	Domain* parsePDDLDomain(const std::string &filename){
 		Domain* domain = 0;
 		std::string domainStr = loadFile(filename);
+		removeComments(domainStr);
 		size_t lPar = domainStr.find_first_of('(');
 		size_t anchor = domainStr.find_last_of(')');
 		domainStr = domainStr.substr(lPar+1, anchor-(lPar+1));
 		std::vector<std::string> sections = splitSections(domainStr);
 		for(std::string &section : sections){
-			if(section=="define" || (section.at(0)==';' && section.at(1)==';')){ continue; }
+			if(section=="define"){ continue; }
 			std::vector<std::string> subsections = splitSections(section);
 			if(subsections.empty()){ continue; }
 			if(subsections[0]=="domain"){
@@ -191,7 +219,7 @@ namespace PDDL{
 					domain->types = domainPtr->types;
 					domain->itypes = domainPtr->itypes;
 					domain->actions = domainPtr->actions;
-					// domain->constants = domainPtr->constants;
+					domain->constants = domainPtr->constants;
 					// domain->predicates = domainPtr->predicates;
 				}else{
 					// TODO: Throw exception
@@ -221,7 +249,23 @@ namespace PDDL{
 				for(const std::string &typ : types){ domain->itypes[typ]; }
 			}
 			if(subsections[0]==":constants"){
-				// TODO: Implement, constant objects present in all problems of the domain
+				std::vector<std::string> queue;
+				bool type = false;
+				for(int i=1;i<subsections.size();i++){
+					if(subsections[i]=="-"){
+						type=true;
+					}else if(type){
+						type = false;
+						for(const std::string &elem : queue){
+							domain->constants[subsections[i]].insert(elem);
+							domain->constants[""].insert(elem);
+						}
+						queue.clear();
+					}else{
+						queue.push_back(subsections[i]);
+					}
+				}
+				for(const std::string &elem : queue){ domain->constants[""].insert(elem); }
 			}
 			if(subsections[0]==":action"){
 				Domain::Action newAction;
@@ -265,13 +309,14 @@ namespace PDDL{
 	Problem* parsePDDLProblem(const std::string &filename){
 		Problem* problem = 0;
 		std::string problemStr = loadFile(filename);
+		removeComments(problemStr);
 		size_t lPar = problemStr.find_first_of('(');
 		size_t anchor = problemStr.find_last_of(')');
 		problemStr = problemStr.substr(lPar+1, anchor-(lPar+1));
 		std::vector<std::string> sections = splitSections(problemStr);
 		std::string tmpStr;
 		for(std::string &section : sections){
-			if(section=="define" || (section.at(0)==';' && section.at(1)==';')){ continue; }
+			if(section=="define"){ continue; }
 			std::vector<std::string> subsections = splitSections(section);
 			if(subsections.empty()){ continue; }
 			if(subsections[0]=="problem" || subsections[0]==":domain"){
@@ -292,6 +337,7 @@ namespace PDDL{
 			}
 			if(!problem){ continue; }
 			if(subsections[0]==":objects"){
+				problem->sets = problem->domain->constants;
 				std::vector<std::string> queue;
 				bool type = false;
 				for(int i=1;i<subsections.size();i++){
@@ -312,7 +358,7 @@ namespace PDDL{
 				for(int i=0;i<problem->domain->types.size();i++){
 					for(const std::pair<std::string,std::set<std::string>> &set : problem->domain->types){
 						for(const std::string &type : set.second){
-							for(const std::string &elem : problem->sets.at(type)){
+							for(const std::string &elem : problem->sets[type]){
 								problem->sets[set.first].insert(elem);
 							}
 						}
@@ -329,6 +375,17 @@ namespace PDDL{
 			}
 		}
 		return problem;
+	}
+	
+	void releaseMemory(){
+		for(const std::pair<std::string,Domain*> &dom : Domain::domains){
+			delete dom.second;
+		}
+		for(const std::pair<std::pair<std::string,std::string>,Problem*> &prob : Problem::problems){
+			delete prob.second;
+		}
+		Domain::domains.clear();
+		Problem::problems.clear();
 	}
 };
 
