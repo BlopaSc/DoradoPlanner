@@ -345,7 +345,7 @@ namespace Expressions{
 	// Can't be applied, should throw error
 	Exists::Exists(idexpr_t k,Arguments &a) : LogicalExpression(k,ExpressionType::EXISTS,a) {};
 	bool Exists::isModeledBy(World* world){
-		Variable* v = (Variable*)exprs.at(args.front());
+		Variable* v = static_cast<Variable*>(exprs.at(args.front()));
 		idexpr_t gid = v->group;
 		for(idexpr_t member : world->groups.at(gid)){
 			if(exprs.at(args.back())->substitute(v->variable,member)->isModeledBy(world)){ return true; }
@@ -353,7 +353,7 @@ namespace Expressions{
 		return false;
 	}
 	bool Exists::isLaxModeledBy(World* maxWorld,World* minWorld){
-		Variable* v = (Variable*)exprs.at(args.front());
+		Variable* v = static_cast<Variable*>(exprs.at(args.front()));
 		idexpr_t gid = v->group;
 		for(idexpr_t member : maxWorld->groups.at(gid)){
 			if(exprs.at(args.back())->substitute(v->variable,member)->isLaxModeledBy(maxWorld,minWorld)){ return true; }
@@ -364,7 +364,7 @@ namespace Expressions{
 	// Forall class
 	Forall::Forall(idexpr_t k,Arguments &a) : LogicalExpression(k,ExpressionType::FORALL,a) {};
 	bool Forall::isModeledBy(World* world){
-		Variable* v = (Variable*)exprs.at(args.front());
+		Variable* v = static_cast<Variable*>(exprs.at(args.front()));
 		idexpr_t gid = v->group;
 		for(idexpr_t member : world->groups.at(gid)){
 			if(!exprs.at(args.back())->substitute(v->variable,member)->isModeledBy(world)){ return false; }
@@ -372,7 +372,7 @@ namespace Expressions{
 		return true;
 	}
 	bool Forall::isLaxModeledBy(World* maxWorld,World* minWorld){
-		Variable* v = (Variable*)exprs.at(args.front());
+		Variable* v = static_cast<Variable*>(exprs.at(args.front()));
 		idexpr_t gid = v->group;
 		for(idexpr_t member : maxWorld->groups.at(gid)){
 			if(!exprs.at(args.back())->substitute(v->variable,member)->isLaxModeledBy(maxWorld,minWorld)){ return false; }
@@ -380,14 +380,14 @@ namespace Expressions{
 		return true;
 	}
 	void Forall::apply(World* world,Atoms &addList,Atoms &removeList){
-		Variable* v = (Variable*)exprs.at(args.front());
+		Variable* v = static_cast<Variable*>(exprs.at(args.front()));
 		idexpr_t gid = v->group;
 		for(idexpr_t member : world->groups.at(gid)){
 			exprs.at(args.back())->substitute(v->variable,member)->apply(world,addList,removeList);
 		}
 	}
 	void Forall::applyPositive(Atoms &addList,Atoms &removeList){
-		Variable* v = (Variable*)exprs.at(args.front());
+		Variable* v = static_cast<Variable*>(exprs.at(args.front()));
 		idexpr_t gid = v->group;
 		for(idexpr_t member : World::groups.at(gid)){
 			exprs.at(args.back())->substitute(v->variable,member)->applyPositive(addList,removeList);
