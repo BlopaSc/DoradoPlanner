@@ -20,25 +20,23 @@ namespace AStar{
 	template <typename T> class Edge;
 	template <typename T> class NodeState;
 	template <typename T> using NodeNeighbors = std::vector<Edge<T>>;
-	template <typename T> using Path = std::vector<std::pair<idaction_t,T*>>;
-	template <typename T> double defaultHeuristic(T* state);
-	template <typename T> Path<T> AStar(T* initialState,bool (*goalFunction)(T* state),double (*heuristicFunction)(T* state)=&defaultHeuristic,AStarMetrics* metrics=0);
-	template <typename T> void releasePath(Path<T> solution);
+	template <typename T> using Path = std::vector<std::pair<idaction_t,T>>;
+	template <typename T> double defaultHeuristic(const T& state);
+	template <typename T> Path<T> AStar(const T& initialState,bool (*goalFunction)(const T& state),double (*heuristicFunction)(const T& state)=&defaultHeuristic,AStarMetrics* metrics=0);
 	
 	// Classes
 	template <typename T> class Node{
 		protected:
-			T* state;
+			T state;
 			idstate_t id;
 		public:
-			Node() : state(0), id(-1) {};
-			Node(T* s) : state(s){
-				id = state->getKey();
+			Node() : id(-1) {};
+			Node(const T &s) : state(s){
+				id = state.getKey();
 			};
-			inline void release(T* s){ delete state; state = s; }
-			inline T* getState(){ return state; }
+			inline const T& getState(){ return state; }
 			inline idstate_t getIdentifier(){ return id; }
-			inline NodeNeighbors<T> getNeighbors(){ return state->getNeighbors(); };
+			inline NodeNeighbors<T> getNeighbors(){ return state.getNeighbors(); };
 	};
 	
 	template <typename T> class Edge{
@@ -53,15 +51,16 @@ namespace AStar{
 	
 	template <typename T> class NodeState{
 		public:
-			T* state;
+			T state;
 			NodeState<T>* previous;
 			double realCost;
 			double hCost;
 			idaction_t action;
+			bool isNew;
 			bool visited;
 			bool path;
-			NodeState() : state(0), previous(0), realCost(INF), hCost(INF), visited(false),path(false) {};
-			NodeState(T* state) : state(state), previous(0), realCost(0), hCost(INF), visited(false),path(true) {};
+			NodeState() : previous(0), realCost(INF), hCost(INF), isNew(true), visited(false),path(false) {};
+			NodeState(const T& state) : state(state), previous(0), realCost(0), hCost(INF), isNew(true), visited(false),path(true) {};
 	};
 	
 	class AStarMetrics{
@@ -81,11 +80,11 @@ namespace AStar{
 			}
 	};
 	
-	template <typename T> double defaultHeuristic(T* state){
+	template <typename T> double defaultHeuristic(const T& state){
 		return 0.0;
 	}
 	
-	template <typename T> Path<T> AStar(T* initialState,bool (*goalFunction)(T* state),double (*heuristicFunction)(T* state),AStarMetrics* metrics){
+	template <typename T> Path<T> AStar(const T& initialState,bool (*goalFunction)(const T& state),double (*heuristicFunction)(const T& state),AStarMetrics* metrics){
 		Path<T> solution;
 		std::priority_queue<Edge<T>> frontier;
 		std::map<idstate_t, NodeState<T>> knownStates;
@@ -113,10 +112,9 @@ namespace AStar{
 			currentState->visited = true;
 			for(Edge<T> neighbor : neighbors){
 				NodeState<T> *neighborState = &knownStates[neighbor.state.getIdentifier()];
-				if(neighborState->state!=0){
-					neighbor.state.release(neighborState->state);
-				}else{
+				if(neighborState->isNew){
 					neighborState->hCost = heuristicFunction(neighborState->state = neighbor.state.getState());
+					neighborState->isNew = false;
 				}
 				if(neighborState->visited){
 					continue;
@@ -137,11 +135,6 @@ namespace AStar{
 			}
 			std::reverse(solution.begin(),solution.end());
 		}
-		for(std::pair<unsigned int, NodeState<T>> node : knownStates){
-			if(!node.second.path){
-				delete node.second.state;
-			}
-		}
 		if(metrics){
 			metrics->timeTaken = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - tStart).count();
 			metrics->frontierNodes = knownStates.size();
@@ -149,15 +142,6 @@ namespace AStar{
 			metrics->visitedNodes = visitedNodes;
 		}
 		return solution;
-	}
-	
-	template <typename T> void releasePath(Path<T> solution){
-		int counter = 0;
-		for(std::pair<idaction_t,T*> step : solution){
-			if(counter++){
-				delete step.second;
-			}
-		}
 	}
 	
 };

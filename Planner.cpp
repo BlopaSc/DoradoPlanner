@@ -26,11 +26,12 @@ class DoradoPlanner{
 				static std::vector<Action> actions;
 				static Expressions::Expression* goal;
 				Expressions::World* world;
+				WorldState();
 				WorldState(Expressions::World* w);
 				~WorldState();
 				AStar::idstate_t getKey();
 				AStar::NodeNeighbors<WorldState> getNeighbors();
-				static bool goalFunction(WorldState* state);
+				static bool goalFunction(const WorldState& state);
 		};
 		std::vector<std::vector<std::pair<std::string,std::string>>> possibleParameters(PDDL::Problem* problem, const std::vector<std::pair<std::string,std::string>> &params, int curr=0);
 		PDDL::Domain* domain;
@@ -51,6 +52,7 @@ DoradoPlanner::Action::Action(const std::string &n,Expressions::Expression* pc,E
 }
 
 // World subclass
+DoradoPlanner::WorldState::WorldState() : world(0) {};
 DoradoPlanner::WorldState::WorldState(Expressions::World* w) : world(w) {};
 DoradoPlanner::WorldState::~WorldState() {};
 AStar::idstate_t DoradoPlanner::WorldState::getKey(){ return world->key; }
@@ -58,14 +60,14 @@ AStar::NodeNeighbors<DoradoPlanner::WorldState> DoradoPlanner::WorldState::getNe
 	AStar::NodeNeighbors<DoradoPlanner::WorldState> neighbors;
 	for(const Action &act : actions){
 		if(act.precondition->isModeledBy(world)){
-			WorldState* newState = new WorldState(world->apply(act.effect));
-			neighbors.push_back({newState,1.0,act.actionid});
+			Expressions::World* w = world->apply(act.effect);
+			neighbors.push_back({WorldState(w),1.0,act.actionid});
 		}
 	}
 	return neighbors;
 }
-bool DoradoPlanner::WorldState::goalFunction(WorldState* state){
-	return goal->isModeledBy(state->world);
+bool DoradoPlanner::WorldState::goalFunction(const WorldState& state){
+	return goal->isModeledBy(state.world);
 }
 
 // DoradoPlanner class
@@ -102,11 +104,11 @@ std::vector<std::string> DoradoPlanner::plan(const std::string filename,AStar::A
 			actions.push_back({name,preconditionGrounded,effectGrounded});
 		}
 	}
-	WorldState* initialState = new WorldState(Expressions::make_world(problem->init,problem->sets));
+	WorldState initialState(Expressions::make_world(problem->init,problem->sets));
 	WorldState::goal = Expressions::make_expression(problem->goal);
 	// Remove impossible actions
-	Expressions::Atoms maximumList = initialState->world->atoms;
-	Expressions::Atoms minimumList = initialState->world->atoms;
+	Expressions::Atoms maximumList = initialState.world->atoms;
+	Expressions::Atoms minimumList = initialState.world->atoms;
 	for(const Action &act : actions){
 		Expressions::Atoms addList;
 		Expressions::Atoms removeList;
@@ -127,12 +129,10 @@ std::vector<std::string> DoradoPlanner::plan(const std::string filename,AStar::A
 	delete minimumWorld;
 	// Perform planning
 	AStar::Path<WorldState> path = AStar::AStar(initialState,WorldState::goalFunction,AStar::defaultHeuristic,mets);
-	for(const std::pair<AStar::idaction_t,WorldState*> &act : path){
+	for(const std::pair<AStar::idaction_t,WorldState> &act : path){
 		if(!act.first){ continue; }
 		solution.push_back(Action::mapActions.at(act.first));
 	}
-	AStar::releasePath(path);
-	delete initialState;
 	return solution;
 }
 

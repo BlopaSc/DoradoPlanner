@@ -22,19 +22,19 @@ class RiverState{
 		AStar::NodeNeighbors<RiverState> getNeighbors(){
 			AStar::NodeNeighbors<RiverState> neighbors;
 			if(human==vegetable && !(wolf==sheep)){
-				RiverState* newState = new RiverState(!human,wolf,sheep,!vegetable);
+				RiverState newState(!human,wolf,sheep,!vegetable);
 				neighbors.push_back({newState,1.0,4});
 			}
 			if(human==sheep){
-				RiverState* newState = new RiverState(!human,wolf,!sheep,vegetable);
+				RiverState newState(!human,wolf,!sheep,vegetable);
 				neighbors.push_back({newState,1.0,3});
 			}
 			if(human==wolf && !(sheep==vegetable)){
-				RiverState* newState = new RiverState(!human,!wolf,sheep,vegetable);
+				RiverState newState(!human,!wolf,sheep,vegetable);
 				neighbors.push_back({newState,1.0,2});
 			}
 			if(!(wolf==sheep) && !(sheep==vegetable)){
-				RiverState* newState = new RiverState(!human,wolf,sheep,vegetable);
+				RiverState newState(!human,wolf,sheep,vegetable);
 				neighbors.push_back({newState,1.0,1});
 			}
 			return neighbors;
@@ -52,28 +52,26 @@ std::ostream& operator<< (std::ostream &out, const RiverState &st){
 	return out;
 }
 
-bool solved(RiverState* s){
-	return s->human && s->wolf && s->sheep && s->vegetable;
+bool solved(const RiverState& s){
+	return s.human && s.wolf && s.sheep && s.vegetable;
 }
 
 int main(){
 	
-	RiverState* initState = new RiverState();
+	RiverState initState;
 	
-	cout<<"Initial state:"<<std::endl<<*initState<<std::endl;
+	cout<<"Initial state:"<<std::endl<<initState<<std::endl;
 	bool leakTest = true;
-	for(int i=0;i<(leakTest?1000000:1);i++){
+	for(int i=0;i<(leakTest?10000000:1);i++){
 		AStar::Path<RiverState> solution = AStar::AStar(initState,solved);
 		if(!leakTest){
 			cout<<"Solution size: "<<solution.size()<<std::endl;
 			int steps = 0;
-			for(std::pair<AStar::idaction_t,RiverState*> step : solution){
-				cout<<"Step "<<(steps++)<<": "<<(*(step.second))<<"\t\tAction: "<<(step.first)<<std::endl;
+			for(std::pair<AStar::idaction_t,RiverState> step : solution){
+				cout<<"Step "<<(steps++)<<": "<<(step.second)<<"\t\tAction: "<<(step.first)<<std::endl;
 			}
 		}
-		AStar::releasePath(solution);
 	}
-	delete initState;
 	
 	cout << "Type and press ENTER...";
 	char c;

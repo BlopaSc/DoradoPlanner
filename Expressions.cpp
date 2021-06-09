@@ -135,7 +135,7 @@ namespace Expressions{
 		if(!*exprPtr){
 			*exprPtr = new World(key,addList);
 		}
-		return (World*)(*exprPtr);
+		return static_cast<World*>(*exprPtr);
 	}
 	bool World::operator==(const World &other) const{
 		return atoms==other.atoms;
