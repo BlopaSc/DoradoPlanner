@@ -1,44 +1,7 @@
 #ifndef PLANNER_CPP
 #define PLANNER_CPP
-#include "PDDL.cpp"
-#include "Expressions.cpp"
-#include "Astar.cpp"
-#include <iostream>
-#include <map>
-#include <string>
-#include <utility>
-#include <vector>
-
-class DoradoPlanner{
-	protected:
-		class Action{
-			public:
-				static std::map<AStar::idaction_t,std::string> mapActions;
-				std::string name;
-				Expressions::Expression* precondition;
-				Expressions::Expression* effect;
-				AStar::idaction_t actionid;
-				Action(const std::string &n,Expressions::Expression* pc,Expressions::Expression* ef);
-		};
-		class WorldState{
-			// TODO: Consider inheriting from World and just moving contents
-			public:
-				static std::vector<Action> actions;
-				static Expressions::Expression* goal;
-				Expressions::World* world;
-				WorldState();
-				WorldState(Expressions::World* w);
-				~WorldState();
-				AStar::idstate_t getKey();
-				AStar::NodeNeighbors<WorldState> getNeighbors();
-				static bool goalFunction(const WorldState& state);
-		};
-		std::vector<std::vector<std::pair<std::string,std::string>>> possibleParameters(PDDL::Problem* problem, const std::vector<std::pair<std::string,std::string>> &params, int curr=0);
-		PDDL::Domain* domain;
-	public:
-		DoradoPlanner(const std::string filename);
-		std::vector<std::string> plan(const std::string filename,AStar::AStarMetrics *mets=0);
-};
+#include "Planner.h"
+#include "Heuristics.cpp"
 
 // Static variables
 std::map<AStar::idaction_t,std::string> DoradoPlanner::Action::mapActions;
@@ -127,8 +90,12 @@ std::vector<std::string> DoradoPlanner::plan(const std::string filename,AStar::A
 	}
 	delete maximumWorld;
 	delete minimumWorld;
+	// TODO: Smart choose heuristic
+	Heuristics::setGoal(WorldState::goal);
+	//double (*heuristic)(const WorldState& state) = &AStar::defaultHeuristic;
+	double (*heuristic)(const WorldState& state) = &Heuristics::atomDistanceHeuristics;
 	// Perform planning
-	AStar::Path<WorldState> path = AStar::AStar(initialState,WorldState::goalFunction,AStar::defaultHeuristic,mets);
+	AStar::Path<WorldState> path = AStar::AStar(initialState,WorldState::goalFunction,heuristic,mets);
 	for(const std::pair<AStar::idaction_t,WorldState> &act : path){
 		if(!act.first){ continue; }
 		solution.push_back(Action::mapActions.at(act.first));
